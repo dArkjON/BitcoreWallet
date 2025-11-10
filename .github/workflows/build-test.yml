@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master  # Trigger on push to master branch
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
   build-ios-test:
