@@ -188,10 +188,10 @@ jobs:
 
         echo "✅ Altstore export options created"
 
-    - name: Build Archive (with comprehensive error handling)
+    - name: Build Archive (Simplified)
       run: |
-        echo "🔧 BUILDING IOS ARCHIVE"
-        echo "======================="
+        echo "🔧 BUILDING IOS ARCHIVE - SIMPLIFIED"
+        echo "===================================="
 
         cd ios
 
@@ -202,137 +202,27 @@ jobs:
         # Clean any existing archive
         rm -rf $RUNNER_TEMP/BitcoreWallet.xcarchive
 
-        # Function to detect available schemes
-        detect_schemes() {
-          local project_type=$1
-          local project_path=$2
+        # Simple workspace build with minimal flags
+        echo "🔄 Starting simple workspace build..."
+        xcodebuild archive \
+          -workspace BlueWallet.xcworkspace \
+          -scheme BlueWallet \
+          -configuration Release \
+          -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
+          -destination "platform=macOS,variant=Mac Catalyst" \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO \
+          CODE_SIGNING_ALLOWED=NO \
+          ENABLE_BITCODE=NO \
+          ONLY_ACTIVE_ARCH=NO \
+          PROVISIONING_PROFILE_SPECIFIER="" \
+          2>&1 | tee $RUNNER_TEMP/build.log
 
-          echo "🔍 Detecting schemes for $project_type..."
-          xcodebuild -list $project_path 2>/dev/null | grep -A 10 "Schemes:" | grep -v "Schemes:" | grep -v "^$" | sed 's/^[[:space:]]*//' || echo "No schemes found"
-        }
+        BUILD_EXIT_CODE=$?
+        echo "📊 Build exit code: $BUILD_EXIT_CODE"
 
-        # Function to try build with different configurations
-        try_build() {
-          local method=$1
-          local xcode_args="$2"
-          local scheme="$3"
-
-          echo "🔄 Attempting build with $method using scheme: $scheme"
-
-          set +e
-          # Remove problematic Stickers extension temporarily
-          if [ -d "Stickers" ]; then
-            echo "🔄 Temporarily moving Stickers extension..."
-            mv Stickers Stickers_disabled 2>/dev/null || true
-          fi
-
-          xcodebuild archive $xcode_args \
-            -scheme "$scheme" \
-            -configuration Release \
-            -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
-            -destination "platform=macOS,variant=Mac Catalyst" \
-            CODE_SIGN_IDENTITY="" \
-            CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO \
-            ENABLE_BITCODE=NO \
-            ONLY_ACTIVE_ARCH=NO \
-            -allowProvisioningUpdates \
-            PROVISIONING_PROFILE_SPECIFIER="" \
-            -skipPackagePluginValidation \
-            -skipMacroValidation \
-            2>&1 | tee $RUNNER_TEMP/build_${method}.log
-
-          # Restore Stickers extension
-          if [ -d "Stickers_disabled" ]; then
-            echo "🔄 Restoring Stickers extension..."
-            mv Stickers_disabled Stickers 2>/dev/null || true
-          fi
-
-          local exit_code=$?
-          set -e
-
-          echo "📊 $method build exit code: $exit_code"
-
-          if [ $exit_code -eq 0 ]; then
-            echo "✅ $method build successful!"
-            return 0
-          else
-            echo "❌ $method build failed (exit code $exit_code)"
-            echo "📋 Last 50 lines of log:"
-            tail -50 $RUNNER_TEMP/build_${method}.log
-            echo ""
-            echo "🔍 Searching for common error patterns:"
-            grep -i -E "(error|failed|unable|cannot)" $RUNNER_TEMP/build_${method}.log | tail -10 || echo "No error patterns found"
-            return 1
-          fi
-        }
-
-        # Try different approaches
-        BUILD_SUCCESS=0
-
-        # Detect available schemes first
-        if [ -d "BlueWallet.xcworkspace" ]; then
-          echo "📱 Workspace found, detecting schemes..."
-          WORKSPACE_SCHEMES=$(detect_schemes "workspace" "-workspace BlueWallet.xcworkspace")
-          echo "Available workspace schemes: $WORKSPACE_SCHEMES"
-        fi
-
-        if [ -d "BlueWallet.xcodeproj" ]; then
-          echo "📱 Project found, detecting schemes..."
-          PROJECT_SCHEMES=$(detect_schemes "project" "-project BlueWallet.xcodeproj")
-          echo "Available project schemes: $PROJECT_SCHEMES"
-        fi
-
-        # Common scheme names to try
-        SCHEMES_TO_TRY=("BlueWallet" "BlueWallet" "bitcore-wallet" "BitcoreWallet" "ios" "app")
-
-        # Attempt 1: Workspace build with different schemes
-        if [ -d "BlueWallet.xcworkspace" ]; then
-          echo "📱 Trying workspace builds..."
-          for scheme in "${SCHEMES_TO_TRY[@]}"; do
-            if echo "$WORKSPACE_SCHEMES" | grep -q "$scheme"; then
-              echo "✅ Found scheme '$scheme' in workspace"
-              if try_build "workspace_$scheme" "-workspace BlueWallet.xcworkspace" "$scheme"; then
-                BUILD_SUCCESS=1
-                break
-              fi
-            fi
-          done
-
-          # If no scheme found, try with BlueWallet anyway
-          if [ $BUILD_SUCCESS -eq 0 ]; then
-            echo "⚠️ Trying workspace build with default scheme name..."
-            if try_build "workspace_default" "-workspace BlueWallet.xcworkspace" "BlueWallet"; then
-              BUILD_SUCCESS=1
-            fi
-          fi
-        fi
-
-        # Attempt 2: Project build with different schemes
-        if [ $BUILD_SUCCESS -eq 0 ] && [ -d "BlueWallet.xcodeproj" ]; then
-          echo "📱 Trying project builds..."
-          for scheme in "${SCHEMES_TO_TRY[@]}"; do
-            if echo "$PROJECT_SCHEMES" | grep -q "$scheme"; then
-              echo "✅ Found scheme '$scheme' in project"
-              if try_build "project_$scheme" "-project BlueWallet.xcodeproj" "$scheme"; then
-                BUILD_SUCCESS=1
-                break
-              fi
-            fi
-          done
-
-          # If no scheme found, try with BlueWallet anyway
-          if [ $BUILD_SUCCESS -eq 0 ]; then
-            echo "⚠️ Trying project build with default scheme name..."
-            if try_build "project_default" "-project BlueWallet.xcodeproj" "BlueWallet"; then
-              BUILD_SUCCESS=1
-            fi
-          fi
-        fi
-
-        # Check if build was successful
-        if [ $BUILD_SUCCESS -eq 1 ]; then
-          echo "✅ Archive build completed successfully!"
+        if [ $BUILD_EXIT_CODE -eq 0 ]; then
+          echo "✅ Archive build successful!"
           echo "📁 Archive contents:"
           if [ -d "$RUNNER_TEMP/BitcoreWallet.xcarchive" ]; then
             ls -la $RUNNER_TEMP/BitcoreWallet.xcarchive/
@@ -342,27 +232,21 @@ jobs:
             echo ""
             echo "📱 App bundle contents:"
             find $RUNNER_TEMP/BitcoreWallet.xcarchive -name "*.app" -exec ls -la {} \;
+            echo "ARCHIVE_STATUS=success" >> $GITHUB_ENV
           else
             echo "❌ Archive directory not found despite success code"
             exit 1
           fi
         else
-          echo "❌ All build attempts failed"
-          echo "📋 Available logs:"
-          ls -la $RUNNER_TEMP/build_*.log 2>/dev/null || echo "No build logs found"
-
-          # Show summary of all errors
+          echo "❌ Build failed (exit code $BUILD_EXIT_CODE)"
+          echo "📋 Last 50 lines of build log:"
+          tail -50 $RUNNER_TEMP/build.log
           echo ""
-          echo "🚨 ERROR SUMMARY:"
-          echo "=================="
-          for log in $RUNNER_TEMP/build_*.log; do
-            if [ -f "$log" ]; then
-              echo "📄 $(basename $log):"
-              grep -i -E "(error:|failed|unable|cannot)" "$log" | head -5 || echo "  No clear errors found"
-              echo ""
-            fi
-          done
-
+          echo "🔍 Searching for error patterns:"
+          grep -i -E "(error:|failed|unable|cannot)" $RUNNER_TEMP/build.log | tail -10 || echo "No error patterns found"
+          echo ""
+          echo "📋 Available schemes:"
+          xcodebuild -list -workspace BlueWallet.xcworkspace || echo "Could not list schemes"
           exit 1
         fi
 
