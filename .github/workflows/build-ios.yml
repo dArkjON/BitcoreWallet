@@ -1,4 +1,4 @@
-name: Build Bitcore Wallet for Altstore
+name: Build Bitcore Wallet for iOS Altstore
 
 on:
   push:
@@ -14,7 +14,7 @@ on:
 
 jobs:
   build-ios-altstore:
-    runs-on: macos-latest
+    runs-on: macos-latest  # Use macOS for iOS compilation
 
     steps:
     - name: Checkout repository
@@ -26,51 +26,138 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
-    - name: Install dependencies
+    - name: Install Node.js dependencies
       run: |
-        # Install Node dependencies
-        npm install
+        npm install --production=false
 
     - name: Setup Ruby (for CocoaPods)
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: '3.0'
 
-    - name: Install iOS dependencies
+    - name: Install CocoaPods
       run: |
-        # Install CocoaPods
         sudo gem install cocoapods
-
-        # Install iOS dependencies
-        cd ios
-        pod install --repo-update
-        cd ..
+        pod --version
 
     - name: Setup Xcode
       uses: maxim-lobanov/setup-xcode@v1
       with:
         xcode-version: latest-stable
 
-    - name: Create temporary keychain for unsigned builds
+    - name: Show Xcode and SDK information
       run: |
-        # Create temporary keychain for unsigned builds (Altstore compatible)
-        security create-keychain -p "" ~/Library/Keychains/altstore-build.keychain
-        security default-keychain -s ~/Library/Keychains/altstore-build.keychain
-        security unlock-keychain -p "" ~/Library/Keychains/altstore-build.keychain
-        security set-keychain-settings ~/Library/Keychains/altstore-build.keychain
+        echo "🔧 XCODE AND SDK INFORMATION"
+        echo "============================="
+        xcodebuild -version
+        echo ""
+        echo "📱 AVAILABLE IOS SDKS:"
+        xcodebuild -showsdks
+        echo ""
+        echo "🔧 AVAILABLE SCHEMES:"
+        cd ios
+        xcodebuild -list -workspace BlueWallet.xcworkspace
 
-    - name: Configure Build for Altstore
+    - name: Prepare iOS Environment
       run: |
-        echo "🚀 Building Bitcore Wallet for Altstore"
-        echo "Version: ${{ github.ref_name || inputs.version }}"
-        echo "Commit: ${{ github.sha }}"
-        echo "Build type: Unsigned (Altstore compatible)"
+        echo "🔧 PREPARING IOS BUILD ENVIRONMENT"
+        echo "=================================="
 
-    - name: Build Archive (Unsigned)
-      run: |
         cd ios
 
-        # Build archive without code signing (Altstore will sign it)
+        echo "📁 Current directory contents:"
+        ls -la
+
+        echo ""
+        echo "📋 Workspace file:"
+        ls -la BlueWallet.xcworkspace/Contents.xcworkspacedata/
+
+        echo ""
+        echo "📋 Project schemes:"
+        xcodebuild -list -workspace BlueWallet.xcworkspace
+
+    - name: Install iOS dependencies
+      run: |
+        echo "🔧 INSTALLING IOS DEPENDENCIES"
+        echo "==============================="
+        cd ios
+
+        # Clean any existing pods
+        rm -rf Pods/
+        rm -f Podfile.lock
+
+        # Install dependencies with verbose output
+        pod install --repo-update --verbose
+
+    - name: Validate Build Configuration
+      run: |
+        echo "🔧 VALIDATING BUILD CONFIGURATION"
+        echo "================================="
+        cd ios
+
+        echo "✅ Checking workspace exists:"
+        ls -la BlueWallet.xcworkspace
+
+        echo ""
+        echo "✅ Checking Pods directory:"
+        ls -la Pods/
+
+        echo ""
+        echo "✅ Checking export options:"
+        ls -la ../scripts/ExportOptions-Altstore.plist
+
+    - name: Create Altstore Export Options
+      run: |
+        echo "🔧 CREATING ALTSTORE EXPORT OPTIONS"
+        echo "=================================="
+
+        # Create export options specifically for Altstore
+        cat > /tmp/altstore-export.plist << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>method</key>
+            <string>development</string>
+            <key>teamID</key>
+            <string></string>
+            <key>uploadBitcode</key>
+            <false/>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>compileBitcode</key>
+            <false/>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>destination</key>
+            <string>export</string>
+            <key>stripSwiftSymbols</key>
+            <true/>
+            <key>thinning</key>
+            <string>&lt;none&gt;</string>
+            <key>codeSignIdentity</key>
+            <string></string>
+            <key>provisioningProfile</key>
+            <string></string>
+        </dict>
+        </plist>
+        EOF
+
+        echo "✅ Altstore export options created"
+
+    - name: Build Archive (with error handling)
+      run: |
+        echo "🔧 BUILDING IOS ARCHIVE"
+        echo "======================="
+
+        cd ios
+
+        echo "📱 Building Bitcore Wallet archive..."
+
+        # Try different approaches for building the archive
+
+        # First attempt: Build with workspace
+        set +e
         xcodebuild archive \
           -workspace BlueWallet.xcworkspace \
           -scheme BlueWallet \
@@ -78,23 +165,58 @@ jobs:
           -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
           -destination generic/platform=iOS \
           CODE_SIGNING_ALLOWED=NO \
-          ENABLE_BITCODE=NO
+          ENABLE_BITCODE=NO \
+          ONLY_ACTIVE_ARCH=NO
+
+        ARCHIVE_EXIT_CODE=$?
+        set -e
+
+        if [ $ARCHIVE_EXIT_CODE -ne 0 ]; then
+          echo "❌ Archive build failed, trying alternative approach..."
+
+          # Second attempt: Try with project instead of workspace
+          xcodebuild archive \
+            -project BlueWallet.xcodeproj \
+            -scheme BlueWallet \
+            -configuration Release \
+            -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
+            -destination generic/platform=iOS \
+            CODE_SIGNING_ALLOWED=NO \
+            ENABLE_BITCODE=NO \
+            ONLY_ACTIVE_ARCH=NO
+        else
+          echo "✅ Archive build successful!"
+        fi
+
+        echo "📁 Archive contents:"
+        ls -la $RUNNER_TEMP/BitcoreWallet.xcarchive/
 
     - name: Export IPA (Unsigned)
       run: |
+        echo "🔧 EXPORTING UNSIGNED IPA"
+        echo "========================"
+
         cd ios
 
-        # Copy Altstore export options
-        cp ../scripts/ExportOptions-Altstore.plist $RUNNER_TEMP/ExportOptions.plist
+        # Ensure we have an archive
+        if [ ! -d "$RUNNER_TEMP/BitcoreWallet.xcarchive" ]; then
+          echo "❌ No archive found, cannot export IPA"
+          exit 1
+        fi
 
-        # Export IPA without code signing for Altstore
+        # Create build directory
+        mkdir -p $RUNNER_TEMP/build
+
+        # Export IPA using our custom export options
         xcodebuild -exportArchive \
           -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
           -exportPath $RUNNER_TEMP/build \
-          -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
-          -allowProvisioningUpdates \
-          CODE_SIGN_IDENTITY="" \
-          CODE_SIGNING_REQUIRED=NO
+          -exportOptionsPlist /tmp/altstore-export.plist \
+          -allowProvisioningUpdates
+
+        echo "✅ IPA export completed"
+        echo "📁 Build directory contents:"
+        ls -la $RUNNER_TEMP/build/
 
     - name: Get Build Info
       id: build_info
@@ -103,10 +225,12 @@ jobs:
 
         if [ -z "$IPA_PATH" ]; then
           echo "❌ No IPA found in build output"
+          echo "📁 Build directory contents:"
+          ls -la $RUNNER_TEMP/build/
           exit 1
         fi
 
-        IPA_SIZE=$(stat -f%z "$IPA_PATH")
+        IPA_SIZE=$(stat -f%z "$IPA_PATH" 2>/dev/null || stat -c%s "$IPA_PATH")
         SHA256=$(shasum -a 256 "$IPA_PATH" | awk '{print $1}')
         VERSION=${{ github.ref_name || inputs.version }}
 
@@ -260,5 +384,5 @@ jobs:
         echo "2. Add source: \`https://dArkjON.github.io/BitcoreWallet/source.json\`" >> $GITHUB_STEP_SUMMARY
         echo "3. Install Bitcore Wallet" >> $GITHUB_STEP_SUMMARY
         echo "4. 7-day auto-refresh enabled ✨" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GitHub_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         echo "🎉 Your Bitcore Wallet is ready for Altstore distribution!"
