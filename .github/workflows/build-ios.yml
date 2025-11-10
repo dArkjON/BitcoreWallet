@@ -13,7 +13,7 @@ on:
         type: string
 
 jobs:
-  build-ios:
+  build-ios-altstore:
     runs-on: macos-latest
 
     steps:
@@ -26,16 +26,18 @@ jobs:
         node-version: '20'
         cache: 'npm'
 
-    - name: Setup Ruby (for CocoaPods)
-      uses: ruby/setup-ruby@v1
-      with:
-        ruby-version: '3.0'
-
     - name: Install dependencies
       run: |
         # Install Node dependencies
         npm install
 
+    - name: Setup Ruby (for CocoaPods)
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.0'
+
+    - name: Install iOS dependencies
+      run: |
         # Install CocoaPods
         sudo gem install cocoapods
 
@@ -49,95 +51,71 @@ jobs:
       with:
         xcode-version: latest-stable
 
-    - name: Create temporary keychain
+    - name: Create temporary keychain for unsigned builds
       run: |
-        security create-keychain -p "" ~/Library/Keychains/build.keychain
-        security default-keychain -s ~/Library/Keychains/build.keychain
-        security unlock-keychain -p "" ~/Library/Keychains/build.keychain
-        security set-keychain-settings ~/Library/Keychains/build.keychain
+        # Create temporary keychain for unsigned builds (Altstore compatible)
+        security create-keychain -p "" ~/Library/Keychains/altstore-build.keychain
+        security default-keychain -s ~/Library/Keychains/altstore-build.keychain
+        security unlock-keychain -p "" ~/Library/Keychains/altstore-build.keychain
+        security set-keychain-settings ~/Library/Keychains/altstore-build.keychain
 
-    - name: Configure Build
-      env:
-        VERSION: ${{ github.ref_name || inputs.version }}
-        COMMIT_SHA: ${{ github.sha }}
-        BUILD_DATE: ${{ github.event.head_commit.timestamp }}
+    - name: Configure Build for Altstore
       run: |
-        # Update version info
-        echo "Building Bitcore Wallet version: $VERSION"
-        echo "Commit: $COMMIT_SHA"
-        echo "Build date: $BUILD_DATE"
+        echo "🚀 Building Bitcore Wallet for Altstore"
+        echo "Version: ${{ github.ref_name || inputs.version }}"
+        echo "Commit: ${{ github.sha }}"
+        echo "Build type: Unsigned (Altstore compatible)"
 
-        # Create ExportOptions.plist with placeholder (will be updated below)
-        cp scripts/ExportOptions.plist ios/ExportOptions.plist
-
-    - name: Import Code Signing Certificate
-      if: ${{ secrets.BUILD_CERTIFICATE_BASE64 != '' }}
-      env:
-        BUILD_CERTIFICATE_BASE64: ${{ secrets.BUILD_CERTIFICATE_BASE64 }}
-        P12_PASSWORD: ${{ secrets.P12_PASSWORD }}
-        KEYCHAIN_PASSWORD: ""
-      run: |
-        # Create variables
-        CERTIFICATE_PATH=$RUNNER_TEMP/build_certificate.p12
-        KEYCHAIN_PATH=$RUNNER_TEMP/app-signing.keychain-db
-
-        # Import certificate
-        echo -n "$BUILD_CERTIFICATE_BASE64" | base64 --decode --output $CERTIFICATE_PATH
-        security create-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-        security set-keychain-settings -lut 21600 $KEYCHAIN_PATH
-        security unlock-keychain -p "$KEYCHAIN_PASSWORD" $KEYCHAIN_PATH
-        security import $CERTIFICATE_PATH -P "$P12_PASSWORD" -A -t cert -f pkcs12 -k $KEYCHAIN_PATH
-        security list-keychain -d user -s $KEYCHAIN_PATH
-
-    - name: Build Archive
-      env:
-        TEAM_ID: ${{ secrets.TEAM_ID }}
-        PROVISIONING_PROFILE: ${{ secrets.PROVISIONING_PROFILE }}
+    - name: Build Archive (Unsigned)
       run: |
         cd ios
 
-        # Update ExportOptions.plist with actual values if available
-        if [ -n "$TEAM_ID" ]; then
-          /usr/libexec/PlistBuddy -c "Set :teamID $TEAM_ID" ExportOptions.plist
-        fi
-
-        if [ -n "$PROVISIONING_PROFILE" ]; then
-          /usr/libexec/PlistBuddy -c "Set :provisioningProfiles:io.bitcore.bitcorewallet $PROVISIONING_PROFILE" ExportOptions.plist
-        fi
-
-        # Build archive
+        # Build archive without code signing (Altstore will sign it)
         xcodebuild archive \
           -workspace BlueWallet.xcworkspace \
           -scheme BlueWallet \
           -configuration Release \
           -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
           -destination generic/platform=iOS \
-          -allowProvisioningUpdates \
-          CODE_SIGN_STYLE=Automatic || true
+          CODE_SIGNING_ALLOWED=NO \
+          ENABLE_BITCODE=NO
 
-        # Export IPA
+    - name: Export IPA (Unsigned)
+      run: |
+        cd ios
+
+        # Export IPA without code signing for Altstore
         xcodebuild -exportArchive \
           -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
           -exportPath $RUNNER_TEMP/build \
-          -exportOptionsPlist ExportOptions.plist \
-          -allowProvisioningUpdates
+          -exportOptionsPlist \
+          -allowProvisioningUpdates \
+          CODE_SIGN_IDENTITY="" \
+          CODE_SIGNING_REQUIRED=NO
 
     - name: Get Build Info
       id: build_info
       run: |
         IPA_PATH=$(find $RUNNER_TEMP/build -name "*.ipa" | head -n 1)
+
+        if [ -z "$IPA_PATH" ]; then
+          echo "❌ No IPA found in build output"
+          exit 1
+        fi
+
         IPA_SIZE=$(stat -f%z "$IPA_PATH")
         SHA256=$(shasum -a 256 "$IPA_PATH" | awk '{print $1}')
         VERSION=${{ github.ref_name || inputs.version }}
+
+        echo "📱 IPA Path: $IPA_PATH"
+        echo "📏 IPA Size: $IPA_SIZE bytes"
+        echo "🔐 SHA256: $SHA256"
+        echo "🏷️ Version: $VERSION"
 
         echo "IPA_PATH=$IPA_PATH" >> $GITHUB_OUTPUT
         echo "IPA_SIZE=$IPA_SIZE" >> $GITHUB_OUTPUT
         echo "SHA256=$SHA256" >> $GITHUB_OUTPUT
         echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
-
-        echo "IPA Path: $IPA_PATH"
-        echo "IPA Size: $IPA_SIZE bytes"
-        echo "SHA256: $SHA256"
 
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/')
@@ -145,32 +123,47 @@ jobs:
       with:
         name: Bitcore Wallet ${{ steps.build_info.outputs.VERSION }}
         body: |
-          ## Bitcore Wallet for iOS
+          ## 🚀 Bitcore Wallet for iOS (Altstore Release)
 
-          ### 🚀 Features
-          - Full Bitcore (BTX) support
-          - Multiple wallet types (Legacy, SegWit, Taproot)
-          - 220-byte OP_RETURN support
-          - Connects to Bitcore Electrum servers
+          ### ✨ Features
+          - **Full Bitcore (BTX) support** - Native BTX transactions and addresses
+          - **Multiple wallet types** - Legacy, SegWit P2SH, SegWit Bech32, Taproot
+          - **220-byte OP_RETURN** - Much larger than Bitcoin's 80 bytes
+          - **Electrum Integration** - Connects to Bitcore Electrum servers
+          - **No Developer Account Required** - Distributed via Altstore
+          - **Self-Hosted** - Complete privacy and control
 
-          ### 📱 Installation
+          ### 📱 Altstore Installation
           1. Install Altstore on your iOS device
-          2. Add this source in Altstore: `https://bitcore-wallet.github.io/BitcoreWallet/source.json`
+          2. Add this source in Altstore: `https://dArkjON.github.io/BitcoreWallet/source.json`
           3. Download and install the app
+          4. 7-day certificate will auto-refresh
 
           ### 🔐 Security
-          - Self-hosted, no tracking
-          - Open source
-          - Locally encrypted storage
+          - **Local Storage** - All private keys stored locally
+          - **Encryption** - Wallet data encrypted with device passcode
+          - **Biometric** - Face ID and Touch ID support
+          - **No Tracking** - No analytics or tracking
+          - **Open Source** - Fully auditable code
 
-          ### 📋 Build Info
+          ### 📋 Build Information
           - **Version:** ${{ steps.build_info.outputs.VERSION }}
           - **Build Date:** ${{ github.event.head_commit.timestamp }}
           - **SHA256:** ${{ steps.build_info.outputs.SHA256 }}
           - **Size:** ${{ steps.build_info.outputs.IPA_SIZE }} bytes
+          - **Build Type:** Unsigned (Altstore compatible)
 
-          ### ⚠️ Note
-          This app is signed for 7 days and will need to be refreshed through Altstore.
+          ### ⚠️ Important Notes
+          - **Unsigned IPA:** Must be signed through Altstore
+          - **7-Day Expiration:** Apps auto-refresh via Altstore
+          - **No App Store:** Distributed outside Apple's ecosystem
+
+          ### 🆚️ Supported Address Types
+          - **P2PKH:** Starts with `3` (Bitcore prefix)
+          - **P2SH:** Starts with prefix 0x7d (125)
+          - **Bech32:** `btx1...` format
+          - **OP_RETURN:** Up to 220 bytes support
+
         files: |
           ${{ steps.build_info.outputs.IPA_PATH }}
         draft: false
@@ -194,9 +187,9 @@ jobs:
               "developerName": "Bitcore Community",
               "version": "$VERSION",
               "versionDate": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
-              "versionDescription": "Bitcore wallet with BTX support and 220-byte OP_RETURN transactions",
+              "versionDescription": "Bitcore wallet with BTX support and 220-byte OP_RETURN transactions - Distributed via Altstore without Apple Developer Account",
               "downloadURL": "$IPA_URL",
-              "localizedDescription": "A powerful Bitcore (BTX) cryptocurrency wallet supporting all address types and advanced features like 220-byte OP_RETURN transactions.",
+              "localizedDescription": "A powerful Bitcore (BTX) cryptocurrency wallet supporting all address types and advanced features like 220-byte OP_RETURN transactions. Built from the proven BlueWallet codebase and fully adapted for Bitcore network. Distributed via Altstore for maximum privacy and control.",
               "iconURL": "https://raw.githubusercontent.com/${{ github.repository }}/main/docs/icon-1024.png",
               "tintColor": "#FF9500",
               "size": ${{ steps.build_info.outputs.IPA_SIZE }},
@@ -205,19 +198,35 @@ jobs:
                 "Photo Library",
                 "Face ID",
                 "Touch ID",
-                "Notifications"
+                "Notifications",
+                "Microphone"
               ],
               "screenshotURLs": [
                 "https://raw.githubusercontent.com/${{ github.repository }}/main/docs/screenshots/main.png",
-                "https://raw.githubusercontent.com/${{ github.repository }}/main/docs/screenshots/wallet.png"
+                "https://raw.githubusercontent.com/${{ github.repository }}/main/docs/screenshots/wallet.png",
+                "https://raw.githubusercontent.com/${{ github.repository }}/main/docs/screenshots/send.png"
+              ],
+              "news": [
+                {
+                  "title": "Bitcore Support Complete",
+                  "identifier": "bitcore-support-complete",
+                  "date": "2025-01-10T11:30:00Z",
+                  "caption": "Full Bitcore (BTX) support with 220-byte OP_RETURN transactions and Altstore distribution"
+                },
+                {
+                  "title": "No Developer Account Required",
+                  "identifier": "no-apple-account",
+                  "date": "2025-01-10T11:30:00Z",
+                  "caption": "Distributed via Altstore - complete privacy and control"
+                }
               ]
             }
           ]
         }
         EOF
 
-        echo "Created source.json:"
-        cat source.json
+        echo "✅ Created source.json for Altstore"
+        echo "📲 Source URL: https://dArkjON.github.io/BitcoreWallet/source.json"
 
     - name: Deploy to GitHub Pages
       if: startsWith(github.ref, 'refs/tags/')
@@ -230,10 +239,23 @@ jobs:
         destination_dir: ./
         allow_empty_commit: true
 
-    - name: Update Downloads Badge
-      if: startsWith(github.ref, 'refs/tags/')
+    - name: Build Summary
       run: |
-        # Create a simple badge
-        echo "📱 Latest Version: ${{ steps.build_info.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
-        echo "⬇️ Download: https://github.com/${{ github.repository }}/releases" >> $GITHUB_STEP_SUMMARY
-        echo "📲 Altstore: https://bitcore-wallet.github.io/BitcoreWallet/source.json" >> $GITHUB_STEP_SUMMARY# Build trigger enabled
+        echo "## ✅ Bitcore Wallet Altstore Build Complete!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📱 Build Details:" >> $GITHUB_STEP_SUMMARY
+        echo "- **Version:** ${{ steps.build_info.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Size:** ${{ steps.build_info.outputs.IPA_SIZE }} bytes" >> $GITHUB_STEP_SUMMARY
+        echo "- **SHA256:** ${{ steps.build_info.outputs.SHA256 }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📲 Download:" >> $GITHUB_STEP_SUMMARY
+        echo "- **GitHub Release:** https://github.com/${{ github.repository }}/releases" >> $GITHUB_STEP_SUMMARY
+        echo "- **IPA File:** [BitcoreWallet.ipa](https://github.com/${{ github.repository }}/releases/download/v${{ steps.build_info.outputs.VERSION }}/BitcoreWallet.ipa)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📲 Altstore Installation:" >> $GITHUB_STEP_SUMMARY
+        echo "1. Install Altstore on iOS device" >> $GITHUB_STEP_SUMMARY
+        echo "2. Add source: \`https://dArkjON.github.io/BitcoreWallet/source.json\`" >> $GITHUB_STEP_SUMMARY
+        echo "3. Install Bitcore Wallet" >> $GITHUB_STEP_SUMMARY
+        echo "4. 7-day auto-refresh enabled ✨" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GitHub_STEP_SUMMARY
+        echo "🎉 Your Bitcore Wallet is ready for Altstore distribution!"
