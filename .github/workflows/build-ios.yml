@@ -223,8 +223,10 @@ jobs:
 
         echo "✅ Build environment cleaned"
 
-        echo "🔄 Starting iOS build with fresh environment..."
-        xcodebuild archive \
+        echo "🔄 Starting simplified iOS build..."
+
+        # Try very simple build with minimal flags and timeout
+        timeout 300s xcodebuild archive \
           -workspace BlueWallet.xcworkspace \
           -scheme BlueWallet \
           -configuration Release \
@@ -233,11 +235,23 @@ jobs:
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
           ENABLE_BITCODE=NO \
-          ONLY_ACTIVE_ARCH=NO \
           PROVISIONING_PROFILE_SPECIFIER="" \
-          -allowProvisioningUpdates \
-          ARCHS=x86_64 \
-          2>&1 | tee $RUNNER_TEMP/build.log
+          2>&1 | tee $RUNNER_TEMP/build.log &
+
+        # Get the PID of xcodebuild
+        BUILD_PID=$!
+        echo "📱 Build started with PID: $BUILD_PID"
+
+        # Wait for build to complete or timeout
+        wait $BUILD_PID 2>/dev/null
+        BUILD_EXIT_CODE=$?
+
+        # Check if build is still running (timeout case)
+        if kill -0 $BUILD_PID 2>/dev/null; then
+          echo "⚠️ Build timeout - killing process"
+          kill -9 $BUILD_PID 2>/dev/null || true
+          BUILD_EXIT_CODE=124  # timeout exit code
+        fi
 
         BUILD_EXIT_CODE=$?
         echo "📊 Build exit code: $BUILD_EXIT_CODE"
