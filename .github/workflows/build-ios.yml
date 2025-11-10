@@ -242,7 +242,7 @@ jobs:
             -skipMacroValidation \
             2>&1 | tee $RUNNER_TEMP/build_${method}.log
 
-      # Restore Stickers extension
+          # Restore Stickers extension
           if [ -d "Stickers_disabled" ]; then
             echo "🔄 Restoring Stickers extension..."
             mv Stickers_disabled Stickers 2>/dev/null || true
