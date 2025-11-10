@@ -232,7 +232,16 @@ jobs:
         echo ""
         echo "📱 Building for iOS (iPhone/iPad) with proper destination..."
 
-        # Build with proper iOS destination (not Mac Catalyst)
+        # Kill any existing Metro processes that might interfere
+        pkill -f "react-native start" || true
+        pkill -f "metro" || true
+        pkill -f "node.*metro" || true
+
+        # Disable Metro bundler for archive builds (faster and avoids hanging)
+        export RCT_METRO_PORT=8081
+        export NODE_ENV=production
+
+        # Build with proper iOS destination and no Metro bundler
         xcodebuild archive \
           -workspace BlueWallet.xcworkspace \
           -scheme BlueWallet \
@@ -249,6 +258,8 @@ jobs:
           PROVISIONING_PROFILE_SPECIFIER="" \
           -allowProvisioningUpdates \
           -quiet \
+          PRODUCT_BUNDLE_IDENTIFIER=io.bitcore.bitcorewallet \
+          DISABLE_MANUAL_WEBVIEW_PACKAGING=1 \
           2>&1 | tee $RUNNER_TEMP/build.log
 
         BUILD_EXIT_CODE=$?
