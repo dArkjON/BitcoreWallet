@@ -69,12 +69,53 @@ jobs:
         ls -la
 
         echo ""
-        echo "📋 Workspace file:"
-        ls -la BlueWallet.xcworkspace/Contents.xcworkspacedata/
+        echo "📋 Checking iOS project structure:"
+
+        # Check for workspace
+        if [ -f "BlueWallet.xcworkspace/Contents.xcworkspacedata/xcschemes/BlueWallet.xcscheme" ]; then
+          echo "✅ Workspace and scheme found"
+        elif [ -f "BlueWallet.xcodeproj/project.xcworkspace/contents.xcworkspacedata/xcschemes/BlueWallet.xcscheme" ]; then
+          echo "✅ Project scheme found"
+        else
+          echo "❌ Scheme not found, but continuing anyway..."
+          echo "📁 Available schemes:"
+          find . -name "*.xcscheme" 2>/dev/null || echo "No schemes found"
+        fi
 
         echo ""
-        echo "📋 Project schemes:"
-        xcodebuild -list -workspace BlueWallet.xcworkspace
+        echo "📋 Checking for main files:"
+        if [ -f "BlueWallet.xcodeproj/project.pbxproj" ]; then
+          echo "✅ Project file found"
+        else
+          echo "❌ Project file missing"
+        fi
+
+        if [ -f "Podfile" ]; then
+          echo "✅ Podfile found"
+        else
+          echo "❌ Podfile missing"
+        fi
+
+        echo ""
+        echo "🔧 Attempting to list available schemes (with error handling):"
+
+        # Try to list schemes safely
+        if [ -d "BlueWallet.xcworkspace" ]; then
+          echo "📱 Checking workspace schemes:"
+          set +e
+          xcodebuild -list -workspace BlueWallet.xcworkspace 2>&1 | head -20 || echo "⚠️ Workspace listing failed"
+          set -e
+        elif [ -d "BlueWallet.xcodeproj" ]; then
+          echo "📱 Checking project schemes:"
+          set +e
+          xcodebuild -list -project BlueWallet.xcodeproj 2>&1 | head -20 || echo "⚠️ Project listing failed"
+          set -e
+        else
+          echo "❌ No Xcode project found"
+        fi
+
+        echo ""
+        echo "🎯 Build preparation completed, continuing with build..."
 
     - name: Install iOS dependencies
       run: |
@@ -145,7 +186,7 @@ jobs:
 
         echo "✅ Altstore export options created"
 
-    - name: Build Archive (with error handling)
+    - name: Build Archive (with comprehensive error handling)
       run: |
         echo "🔧 BUILDING IOS ARCHIVE"
         echo "======================="
@@ -153,43 +194,84 @@ jobs:
         cd ios
 
         echo "📱 Building Bitcore Wallet archive..."
+        echo "   Architecture: $(uname -m)"
+        echo "   Xcode version: $(xcodebuild -version | head -1)"
 
-        # Try different approaches for building the archive
+        # Clean any existing archive
+        rm -rf $RUNNER_TEMP/BitcoreWallet.xcarchive
 
-        # First attempt: Build with workspace
-        set +e
-        xcodebuild archive \
-          -workspace BlueWallet.xcworkspace \
-          -scheme BlueWallet \
-          -configuration Release \
-          -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
-          -destination generic/platform=iOS \
-          CODE_SIGNING_ALLOWED=NO \
-          ENABLE_BITCODE=NO \
-          ONLY_ACTIVE_ARCH=NO
+        # Function to try build with different configurations
+        try_build() {
+          local method=$1
+          local xcode_args="$2"
 
-        ARCHIVE_EXIT_CODE=$?
-        set -e
+          echo "🔄 Attempting build with $method..."
 
-        if [ $ARCHIVE_EXIT_CODE -ne 0 ]; then
-          echo "❌ Archive build failed, trying alternative approach..."
-
-          # Second attempt: Try with project instead of workspace
-          xcodebuild archive \
-            -project BlueWallet.xcodeproj \
+          set +e
+          xcodebuild archive $xcode_args \
             -scheme BlueWallet \
             -configuration Release \
             -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
             -destination generic/platform=iOS \
             CODE_SIGNING_ALLOWED=NO \
             ENABLE_BITCODE=NO \
-            ONLY_ACTIVE_ARCH=NO
-        else
-          echo "✅ Archive build successful!"
+            ONLY_ACTIVE_ARCH=NO \
+            -quiet 2>&1 | tee $RUNNER_TEMP/build_${method}.log
+
+          local exit_code=$?
+          set -e
+
+          echo "📊 $method build exit code: $exit_code"
+
+          if [ $exit_code -eq 0 ]; then
+            echo "✅ $method build successful!"
+            return 0
+          else
+            echo "❌ $method build failed (exit code $exit_code)"
+            echo "📋 Last 20 lines of log:"
+            tail -20 $RUNNER_TEMP/build_${method}.log
+            return 1
+          fi
+        }
+
+        # Try different approaches
+        BUILD_SUCCESS=0
+
+        # Attempt 1: Workspace build
+        if [ -d "BlueWallet.xcworkspace" ]; then
+          echo "📱 Trying workspace build..."
+          if try_build "workspace" "-workspace BlueWallet.xcworkspace"; then
+            BUILD_SUCCESS=1
+          fi
         fi
 
-        echo "📁 Archive contents:"
-        ls -la $RUNNER_TEMP/BitcoreWallet.xcarchive/
+        # Attempt 2: Project build
+        if [ $BUILD_SUCCESS -eq 0 ] && [ -d "BlueWallet.xcodeproj" ]; then
+          echo "📱 Trying project build..."
+          if try_build "project" "-project BlueWallet.xcodeproj"; then
+            BUILD_SUCCESS=1
+          fi
+        fi
+
+        # Check if build was successful
+        if [ $BUILD_SUCCESS -eq 1 ]; then
+          echo "✅ Archive build completed successfully!"
+          echo "📁 Archive contents:"
+          if [ -d "$RUNNER_TEMP/BitcoreWallet.xcarchive" ]; then
+            ls -la $RUNNER_TEMP/BitcoreWallet.xcarchive/
+            echo ""
+            echo "📋 Archive structure:"
+            find $RUNNER_TEMP/BitcoreWallet.xcarchive -name "*.app" | head -5
+          else
+            echo "❌ Archive directory not found despite success code"
+            exit 1
+          fi
+        else
+          echo "❌ All build attempts failed"
+          echo "📋 Available logs:"
+          ls -la $RUNNER_TEMP/build_*.log 2>/dev/null || echo "No build logs found"
+          exit 1
+        fi
 
     - name: Export IPA (Unsigned)
       run: |
