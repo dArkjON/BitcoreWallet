@@ -202,8 +202,18 @@ jobs:
         # Clean any existing archive
         rm -rf $RUNNER_TEMP/BitcoreWallet.xcarchive
 
-        # Try generic iOS platform without device specification
-        echo "🔄 Using generic iOS platform without device specification..."
+        # Apply React Native BOOL fix and build
+        echo "🔄 Applying React Native BOOL conversion fix..."
+
+        # Fix the BOOL type conversion error in React Native
+        RCT_INSTANCE_FILE="node_modules/react-native/ReactCommon/react/runtime/platform/ios/ReactCommon/RCTInstance.mm"
+        if [ -f "$RCT_INSTANCE_FILE" ]; then
+          echo "🔧 Applying BOOL conversion fix to RCTInstance.mm..."
+          sed -i.bak 's/isFatal:errorData\[@"isFatal"\]/isFatal:([errorData[@"isFatal"] respondsToSelector:@selector(boolValue)] ? [errorData[@"isFatal"] boolValue] : NO)/g' "$RCT_INSTANCE_FILE"
+          echo "✅ React Native BOOL fix applied"
+        fi
+
+        echo "🔄 Starting iOS build with fixes applied..."
         xcodebuild archive \
           -workspace BlueWallet.xcworkspace \
           -scheme BlueWallet \
@@ -216,7 +226,6 @@ jobs:
           ONLY_ACTIVE_ARCH=NO \
           PROVISIONING_PROFILE_SPECIFIER="" \
           -allowProvisioningUpdates \
-          -quiet \
           ARCHS=x86_64 \
           2>&1 | tee $RUNNER_TEMP/build.log
 
