@@ -222,7 +222,7 @@ jobs:
             -scheme "$scheme" \
             -configuration Release \
             -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
-            -destination "platform=iOS,name=Any iOS Device" \
+            -destination "platform=macOS,variant=Mac Catalyst" \
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
