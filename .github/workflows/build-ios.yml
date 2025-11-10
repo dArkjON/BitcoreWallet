@@ -202,44 +202,28 @@ jobs:
         # Clean any existing archive
         rm -rf $RUNNER_TEMP/BitcoreWallet.xcarchive
 
-        # Apply React Native BOOL fix and build
-        echo "🔄 Applying React Native BOOL conversion fix..."
+        # Clean build environment to avoid cache issues
+        echo "🧹 Cleaning build environment to avoid cache issues..."
 
-        # Fix the BOOL type conversion error in React Native
-        RCT_INSTANCE_FILE="node_modules/react-native/ReactCommon/react/runtime/platform/ios/ReactCommon/RCTInstance.mm"
-        if [ -f "$RCT_INSTANCE_FILE" ]; then
-          echo "🔧 Applying BOOL conversion fix to RCTInstance.mm..."
+        # Clean all build caches
+        rm -rf ~/Library/Developer/Xcode/DerivedData/*
+        rm -rf ios/Pods/Pods.xcodeproj/xcuserdata
+        rm -rf ios/Pods/Target\ Support\ Files
+        rm -rf ios/Pods/*.xcworkspace/xcuserdata
 
-          # Create a Python script for the fix
-          cat > fix_react_native.py << 'EOF'
-import re
+        # Clean React Native cache
+        npm run clean || echo "No clean script found - continuing"
 
-with open('node_modules/react-native/ReactCommon/react/runtime/platform/ios/ReactCommon/RCTInstance.mm', 'r') as f:
-    content = f.read()
+        # Clean and reinstall pods to ensure fresh state
+        cd ios
+        rm -rf Pods/
+        rm -f Podfile.lock
+        pod install --clean-install --repo-update
+        cd ..
 
-# Fix the BOOL conversion issue
-pattern = r'isFatal:errorData\["@isFatal"\]'
-replacement = '([errorData[@"isFatal"] respondsToSelector:@selector(boolValue)] ? [errorData[@"isFatal"] boolValue] : NO)'
-content = re.sub(pattern, replacement, content)
+        echo "✅ Build environment cleaned"
 
-with open('node_modules/react-native/ReactCommon/react/runtime/platform/ios/ReactCommon/RCTInstance.mm', 'w') as f:
-    f.write(content)
-
-print("✅ React Native BOOL fix applied")
-EOF
-
-          python3 fix_react_native.py
-          rm fix_react_native.py
-
-          # Verify the fix was applied
-          if grep -q "respondsToSelector:@selector(boolValue)" "$RCT_INSTANCE_FILE"; then
-            echo "✅ BOOL fix verified in RCTInstance.mm"
-          else
-            echo "❌ BOOL fix failed to apply"
-          fi
-        fi
-
-        echo "🔄 Starting iOS build with fixes applied..."
+        echo "🔄 Starting iOS build with fresh environment..."
         xcodebuild archive \
           -workspace BlueWallet.xcworkspace \
           -scheme BlueWallet \
