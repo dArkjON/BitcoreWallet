@@ -84,11 +84,14 @@ jobs:
       run: |
         cd ios
 
+        # Copy Altstore export options
+        cp ../scripts/ExportOptions-Altstore.plist $RUNNER_TEMP/ExportOptions.plist
+
         # Export IPA without code signing for Altstore
         xcodebuild -exportArchive \
           -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
           -exportPath $RUNNER_TEMP/build \
-          -exportOptionsPlist \
+          -exportOptionsPlist $RUNNER_TEMP/ExportOptions.plist \
           -allowProvisioningUpdates \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO
