@@ -202,14 +202,13 @@ jobs:
         # Clean any existing archive
         rm -rf $RUNNER_TEMP/BitcoreWallet.xcarchive
 
-        # Try different destinations to avoid React Native Mac Catalyst issues
-        echo "🔄 Trying iOS Simulator build to avoid Mac Catalyst React Native issues..."
+        # Try generic iOS platform without device specification
+        echo "🔄 Using generic iOS platform without device specification..."
         xcodebuild archive \
           -workspace BlueWallet.xcworkspace \
           -scheme BlueWallet \
           -configuration Release \
           -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
-          -destination "platform=iOS Simulator,name=iPhone 14,OS=latest" \
           CODE_SIGN_IDENTITY="" \
           CODE_SIGNING_REQUIRED=NO \
           CODE_SIGNING_ALLOWED=NO \
@@ -217,6 +216,8 @@ jobs:
           ONLY_ACTIVE_ARCH=NO \
           PROVISIONING_PROFILE_SPECIFIER="" \
           -allowProvisioningUpdates \
+          -quiet \
+          ARCHS=x86_64 \
           2>&1 | tee $RUNNER_TEMP/build.log
 
         BUILD_EXIT_CODE=$?
