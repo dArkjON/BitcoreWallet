@@ -30,7 +30,10 @@ jobs:
 
     - name: Install Node.js dependencies
       run: |
-        npm install --production=false
+        # Install without running postinstall scripts that start Metro
+        npm install --production=false --ignore-scripts
+        # Manually run only essential scripts
+        npm run patches || echo "No patches script found"
 
     - name: Setup Ruby (for CocoaPods)
       uses: ruby/setup-ruby@v1
@@ -232,14 +235,21 @@ jobs:
         echo ""
         echo "📱 Building for iOS (iPhone/iPad) with proper destination..."
 
-        # Kill any existing Metro processes that might interfere
-        pkill -f "react-native start" || true
-        pkill -f "metro" || true
-        pkill -f "node.*metro" || true
+        # Kill ALL Metro and React Native processes aggressively
+        echo "🔪 KILLING METRO PROCESSES"
+        pkill -9 -f "react-native start" || true
+        pkill -9 -f "metro" || true
+        pkill -9 -f "node.*metro" || true
+        pkill -9 -f "localhost:8081" || true
+        lsof -ti:8081 | xargs kill -9 2>/dev/null || true
 
-        # Disable Metro bundler for archive builds (faster and avoids hanging)
-        export RCT_METRO_PORT=8081
+        # Environment for production build (NO METRO)
+        export RCT_NO_LAUNCH_PACKAGER=1
         export NODE_ENV=production
+        export DISABLE_MANUAL_WEBVIEW_PACKAGING=1
+        export BUNDLE_COMMAND=build
+
+        echo "✅ Metro processes killed, production mode enabled"
 
         # Build with proper iOS destination and no Metro bundler
         xcodebuild archive \
