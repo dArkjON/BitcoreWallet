@@ -30,10 +30,8 @@ jobs:
 
     - name: Install Node.js dependencies
       run: |
-        # Install without running postinstall scripts that start Metro
-        npm install --production=false --ignore-scripts
-        # Manually run only essential scripts
-        npm run patches || echo "No patches script found"
+        # Install dependencies normally (Metro is now handled by Xcode build phase)
+        npm install --production=false
 
     - name: Setup Ruby (for CocoaPods)
       uses: ruby/setup-ruby@v1
@@ -226,6 +224,13 @@ jobs:
 
         echo "✅ Build environment cleaned"
 
+        echo "📦 Creating React Native production bundle..."
+
+        # Create production JavaScript bundle (pre-bundle approach)
+        ./scripts/prebundle-ios.sh
+
+        echo "✅ Production bundle created"
+
         echo "🔄 Starting iOS build with detailed logging..."
 
         # Pre-check available destinations and architectures
@@ -233,25 +238,17 @@ jobs:
         xcodebuild -list -workspace BlueWallet.xcworkspace 2>&1 | grep -A 10 "Destinations:" || echo "Could not list destinations"
 
         echo ""
-        echo "📱 Building for iOS (iPhone/iPad) with proper destination..."
+        echo "📱 Building for iOS Release with pre-bundled JavaScript..."
 
-        # Kill ALL Metro and React Native processes aggressively
-        echo "🔪 KILLING METRO PROCESSES"
-        pkill -9 -f "react-native start" || true
-        pkill -9 -f "metro" || true
-        pkill -9 -f "node.*metro" || true
-        pkill -9 -f "localhost:8081" || true
-        lsof -ti:8081 | xargs kill -9 2>/dev/null || true
-
-        # Environment for production build (NO METRO)
-        export RCT_NO_LAUNCH_PACKAGER=1
+        # Environment for production build
         export NODE_ENV=production
-        export DISABLE_MANUAL_WEBVIEW_PACKAGING=1
-        export BUNDLE_COMMAND=build
+        export PRODUCT_BUNDLE_IDENTIFIER=io.bitcore.bitcorewallet
 
-        echo "✅ Metro processes killed, production mode enabled"
+        echo "✅ Production environment configured"
+        echo "   Bundle: pre-bundled JavaScript included"
+        echo "   Metro: disabled for Release builds"
 
-        # Build with proper iOS destination and no Metro bundler
+        # Build iOS archive with pre-bundled JavaScript
         xcodebuild archive \
           -workspace BlueWallet.xcworkspace \
           -scheme BlueWallet \
@@ -268,8 +265,6 @@ jobs:
           PROVISIONING_PROFILE_SPECIFIER="" \
           -allowProvisioningUpdates \
           -quiet \
-          PRODUCT_BUNDLE_IDENTIFIER=io.bitcore.bitcorewallet \
-          DISABLE_MANUAL_WEBVIEW_PACKAGING=1 \
           2>&1 | tee $RUNNER_TEMP/build.log
 
         BUILD_EXIT_CODE=$?
