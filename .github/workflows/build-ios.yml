@@ -209,8 +209,34 @@ jobs:
         RCT_INSTANCE_FILE="node_modules/react-native/ReactCommon/react/runtime/platform/ios/ReactCommon/RCTInstance.mm"
         if [ -f "$RCT_INSTANCE_FILE" ]; then
           echo "🔧 Applying BOOL conversion fix to RCTInstance.mm..."
-          sed -i.bak 's/isFatal:errorData\[@"isFatal"\]/isFatal:([errorData[@"isFatal"] respondsToSelector:@selector(boolValue)] ? [errorData[@"isFatal"] boolValue] : NO)/g' "$RCT_INSTANCE_FILE"
-          echo "✅ React Native BOOL fix applied"
+
+          # Create a Python script for the fix
+          cat > fix_react_native.py << 'EOF'
+import re
+
+with open('node_modules/react-native/ReactCommon/react/runtime/platform/ios/ReactCommon/RCTInstance.mm', 'r') as f:
+    content = f.read()
+
+# Fix the BOOL conversion issue
+pattern = r'isFatal:errorData\["@isFatal"\]'
+replacement = '([errorData[@"isFatal"] respondsToSelector:@selector(boolValue)] ? [errorData[@"isFatal"] boolValue] : NO)'
+content = re.sub(pattern, replacement, content)
+
+with open('node_modules/react-native/ReactCommon/react/runtime/platform/ios/ReactCommon/RCTInstance.mm', 'w') as f:
+    f.write(content)
+
+print("✅ React Native BOOL fix applied")
+EOF
+
+          python3 fix_react_native.py
+          rm fix_react_native.py
+
+          # Verify the fix was applied
+          if grep -q "respondsToSelector:@selector(boolValue)" "$RCT_INSTANCE_FILE"; then
+            echo "✅ BOOL fix verified in RCTInstance.mm"
+          else
+            echo "❌ BOOL fix failed to apply"
+          fi
         fi
 
         echo "🔄 Starting iOS build with fixes applied..."
