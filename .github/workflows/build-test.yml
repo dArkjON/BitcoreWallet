@@ -47,7 +47,7 @@ jobs:
         # Remove problematic Stickers extension temporarily
         if [ -d "Stickers" ]; then
           echo "🔄 Temporarily moving Stickers extension..."
-          mv Stickers Stickers_disabled 2>/dev/null || true
+          mv Stickers Stickers_disabled || true
         fi
 
         echo "✅ iOS Environment Ready"
@@ -65,7 +65,7 @@ jobs:
         # Install dependencies
         pod install --repo-update
 
-    - name: Build Archive (Simplified)
+  - name: Build Archive (Simplified)
       run: |
         echo "🔧 BUILDING IOS ARCHIVE"
         echo "======================="
@@ -79,7 +79,6 @@ jobs:
         rm -rf $RUNNER_TEMP/BitcoreWallet.xcarchive
 
         # Try building with workspace
-        set +e
         xcodebuild archive \
           -workspace BlueWallet.xcworkspace \
           -scheme BlueWallet \
@@ -95,23 +94,22 @@ jobs:
           PROVISIONING_PROFILE_SPECIFIER="" \
           2>&1 | tee $RUNNER_TEMP/build.log
 
-        local exit_code=$?
-        set -e
+        BUILD_EXIT_CODE=$?
+        echo "📊 Build exit code: $BUILD_EXIT_CODE"
 
-        echo "📊 Build exit code: $exit_code"
-
-        if [ $exit_code -eq 0 ]; then
+        if [ $BUILD_EXIT_CODE -eq 0 ]; then
           echo "✅ Archive build successful!"
           echo "📁 Archive contents:"
           if [ -d "$RUNNER_TEMP/BitcoreWallet.xcarchive" ]; then
             ls -la $RUNNER_TEMP/BitcoreWallet.xcarchive/
             find $RUNNER_TEMP/BitcoreWallet.xcarchive -name "*.app" | head -5
+            echo "ARCHIVE_STATUS=success" >> $GITHUB_ENV
           else
             echo "❌ Archive directory not found despite success code"
             exit 1
           fi
         else
-          echo "❌ Build failed (exit code $exit_code)"
+          echo "❌ Build failed (exit code $BUILD_EXIT_CODE)"
           echo "📋 Last 30 lines of log:"
           tail -30 $RUNNER_TEMP/build.log
           exit 1
