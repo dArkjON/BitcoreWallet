@@ -18,6 +18,7 @@ import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import { unlockWithBiometrics, useBiometrics } from '../../hooks/useBiometrics';
 import { TWallet, CreateTransactionTarget } from '../../class/wallets/types';
 import PayjoinTransaction from '../../class/payjoin-transaction';
+import { getBitcoreNetwork } from '../../blue_modules/bitcore-network';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { SendDetailsStackParamList } from '../../navigation/SendDetailsStackParamList';
 import { useExtendedNavigation } from '../../hooks/useExtendedNavigation';
@@ -168,7 +169,7 @@ const Confirm: React.FC = () => {
     if (!(recipients.length > 0) || !recipients[0].address) {
       return undefined;
     }
-    return bitcoin.address.toOutputScript(recipients[0].address, bitcoin.networks.bitcoin);
+    return bitcoin.address.toOutputScript(recipients[0].address, getBitcoreNetwork());
   };
 
   const handleSendTransaction = async () => {

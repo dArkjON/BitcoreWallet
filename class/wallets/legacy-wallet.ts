@@ -8,6 +8,7 @@ import { ECPairAPI, ECPairFactory, Signer } from 'ecpair';
 import * as BlueElectrum from '../../blue_modules/BlueElectrum';
 import ecc from '../../blue_modules/noble_ecc';
 import { hexToUint8Array, concatUint8Arrays } from '../../blue_modules/uint8array-extras';
+import { getBitcoreNetwork } from '../../blue_modules/bitcore-network';
 import { HDSegwitBech32Wallet } from '..';
 import { randomBytes } from '../rng';
 import { AbstractWallet } from './abstract-wallet';
@@ -77,6 +78,7 @@ export class LegacyWallet extends AbstractWallet {
       const keyPair = ECPair.fromWIF(this.secret);
       address = bitcoin.payments.p2pkh({
         pubkey: keyPair.publicKey,
+        network: getBitcoreNetwork(),
       }).address;
     } catch (err) {
       return false;
@@ -440,7 +442,7 @@ export class LegacyWallet extends AbstractWallet {
     if (targets.length === 0) throw new Error('No destination provided');
     const { inputs, outputs, fee } = this.coinselect(utxos, targets, feeRate);
     sequence = sequence || 0xffffffff; // disable RBF by default
-    const psbt = new bitcoin.Psbt();
+    const psbt = new bitcoin.Psbt({ network: getBitcoreNetwork() });
     let c = 0;
     const values: Record<number, number> = {};
     let keyPair: Signer | null = null;
@@ -472,12 +474,36 @@ export class LegacyWallet extends AbstractWallet {
     }));
 
     sanitizedOutputs.forEach(output => {
-      const outputData = {
-        address: output.address,
-        value: BigInt(output.value),
-      };
+      if (output.address && output.address.startsWith('OP_RETURN:')) {
+        // Handle OP_RETURN output for Bitcore
+        const data = output.address.replace('OP_RETURN:', '');
+        const dataBuffer = Buffer.from(data, 'utf8');
 
-      psbt.addOutput(outputData);
+        // Bitcore supports 220-byte OP_RETURN (vs Bitcoin's 80 bytes)
+        if (dataBuffer.length > 220) {
+          throw new Error(`OP_RETURN data too large: ${dataBuffer.length} bytes (max 220 for Bitcore)`);
+        }
+
+        // Create OP_RETURN script
+        const script = Buffer.concat([
+          Buffer.from([0x6a]), // OP_RETURN
+          Buffer.from([dataBuffer.length]),
+          dataBuffer
+        ]);
+
+        psbt.addOutput({
+          script: script,
+          value: BigInt(output.value),
+        });
+      } else {
+        // Regular address output
+        const outputData = {
+          address: output.address,
+          value: BigInt(output.value),
+        };
+
+        psbt.addOutput(outputData);
+      }
     });
 
     if (!skipSigning && keyPair) {
@@ -545,7 +571,7 @@ export class LegacyWallet extends AbstractWallet {
       return (
         bitcoin.payments.p2pkh({
           output: scriptPubKey2,
-          network: bitcoin.networks.bitcoin,
+          network: getBitcoreNetwork(),
         }).address ?? false
       );
     } catch (_) {

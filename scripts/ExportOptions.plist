@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>method</key>
+	<string>ad-hoc</string>
+	<key>teamID</key>
+	<string>YOUR_TEAM_ID_HERE</string>
+	<key>uploadBitcode</key>
+	<false/>
+	<key>uploadSymbols</key>
+	<true/>
+	<key>compileBitcode</key>
+	<false/>
+	<key>signingStyle</key>
+	<string>manual</string>
+	<key>provisioningProfiles</key>
+	<dict>
+		<key>io.bitcore.bitcorewallet</key>
+		<string>YOUR_AD_HOC_PROFILE_NAME_HERE</string>
+		<key>io.bitcore.bitcorewallet.Stickers</key>
+		<string>YOUR_STICKERS_PROFILE_NAME_HERE</string>
+		<key>io.bitcore.bitcorewallet.MarketWidget</key>
+		<string>YOUR_WIDGET_PROFILE_NAME_HERE</string>
+		<key>io.bitcore.bitcorewallet.watch</key>
+		<string>YOUR_WATCH_PROFILE_NAME_HERE</string>
+	</dict>
+	<key>destination</key>
+	<string>export</string>
+	<key>stripSwiftSymbols</key>
+	<true/>
+	<key>thinning</key>
+	<string>&lt;none&gt;</string>
+</dict>
+</plist>

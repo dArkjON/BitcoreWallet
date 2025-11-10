@@ -1392,7 +1392,7 @@
 					"-lc++",
 				);
 				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bluewallet.bluewallet;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bitcore.bitcorewallet;
 				PRODUCT_NAME = BlueWallet;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match AppStore io.bluewallet.bluewallet";
@@ -1449,7 +1449,7 @@
 					"-lc++",
 				);
 				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bluewallet.bluewallet;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bitcore.bitcorewallet;
 				PRODUCT_NAME = BlueWallet;
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match AppStore io.bluewallet.bluewallet";
@@ -1495,7 +1495,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bluewallet.bluewallet.Stickers;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bitcore.bitcorewallet.Stickers;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match Development io.bluewallet.bluewallet.Stickers";
@@ -1537,7 +1537,7 @@
 				MARKETING_VERSION = 7.2.1;
 				MTL_FAST_MATH = YES;
 				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bluewallet.bluewallet.Stickers;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bitcore.bitcorewallet.Stickers;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match AppStore io.bluewallet.bluewallet.Stickers";
@@ -1590,7 +1590,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bluewallet.bluewallet.MarketWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bitcore.bitcorewallet.MarketWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match Development io.bluewallet.bluewallet.MarketWidget";
@@ -1650,7 +1650,7 @@
 				MARKETING_VERSION = 7.2.1;
 				MTL_FAST_MATH = YES;
 				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bluewallet.bluewallet.MarketWidget;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bitcore.bitcorewallet.MarketWidget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=iphoneos*]" = "match AppStore io.bluewallet.bluewallet.MarketWidget";
@@ -1846,7 +1846,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bluewallet.bluewallet.watch;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bitcore.bitcorewallet.watch;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "match Development io.bluewallet.bluewallet.watch";
@@ -1903,7 +1903,7 @@
 				MARKETING_VERSION = 7.2.1;
 				MTL_FAST_MATH = YES;
 				PRESERVE_DEAD_CODE_INITS_AND_TERMS = YES;
-				PRODUCT_BUNDLE_IDENTIFIER = io.bluewallet.bluewallet.watch;
+				PRODUCT_BUNDLE_IDENTIFIER = io.bitcore.bitcorewallet.watch;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				"PROVISIONING_PROFILE_SPECIFIER[sdk=watchos*]" = "match AppStore io.bluewallet.bluewallet.watch";

@@ -1,0 +1,184 @@
+name: Update Altstore Source
+
+on:
+  push:
+    paths:
+      - '.github/workflows/build-ios.yml'
+  workflow_dispatch:
+
+jobs:
+  update-source:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Get latest release info
+      id: release
+      run: |
+        # Get latest release version from GitHub API
+        LATEST_RELEASE=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.tag_name // "7.2.1"')
+        echo "version=$LATEST_RELEASE" >> $GITHUB_OUTPUT
+
+        # Get release assets
+        if [ "$LATEST_RELEASE" != "null" ] && [ "$LATEST_RELEASE" != "" ]; then
+          IPA_URL="https://github.com/${{ github.repository }}/releases/download/$LATEST_RELEASE/BitcoreWallet.ipa"
+          echo "ipa_url=$IPA_URL" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create Altstore source
+      run: |
+        VERSION="${{ steps.release.outputs.version }}"
+        IPA_URL="${{ steps.release.outputs.ipa_url }}"
+
+        if [ -z "$IPA_URL" ] || [ "$IPA_URL" = "null" ]; then
+          # Fallback URL - update this when you have an actual release
+          IPA_URL="https://github.com/${{ github.repository }}/releases/latest/download/BitcoreWallet.ipa"
+        fi
+
+        cat > source.json << EOF
+        {
+          "name": "Bitcore Wallet",
+          "identifier": "io.bitcore.bitcorewallet",
+          "apps": [
+            {
+              "name": "Bitcore Wallet",
+              "bundleIdentifier": "io.bitcore.bitcorewallet",
+              "developerName": "Bitcore Community",
+              "version": "$VERSION",
+              "versionDate": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+              "versionDescription": "Bitcore wallet with BTX support and 220-byte OP_RETURN transactions",
+              "downloadURL": "$IPA_URL",
+              "localizedDescription": "A powerful Bitcore (BTX) cryptocurrency wallet supporting all address types and advanced features like 220-byte OP_RETURN transactions. Built from the proven BlueWallet codebase and fully adapted for Bitcore network.",
+              "iconURL": "https://raw.githubusercontent.com/${{ github.repository }}/main/docs/icon-1024.png",
+              "tintColor": "#FF9500",
+              "size": 15000000,
+              "permissions": [
+                "Camera",
+                "Photo Library",
+                "Face ID",
+                "Touch ID",
+                "Notifications",
+                "Microphone"
+              ],
+              "screenshotURLs": [
+                "https://raw.githubusercontent.com/${{ github.repository }}/main/docs/screenshots/main.png",
+                "https://raw.githubusercontent.com/${{ github.repository }}/main/docs/screenshots/wallet.png",
+                "https://raw.githubusercontent.com/${{ github.repository }}/main/docs/screenshots/send.png"
+              ],
+              "news": [
+                {
+                  "title": "Bitcore Support",
+                  "identifier": "bitcore-support",
+                  "date": "2025-01-10T00:00:00Z",
+                  "caption": "Full Bitcore (BTX) network support with 220-byte OP_RETURN transactions"
+                }
+              ]
+            }
+          ]
+        }
+        EOF
+
+        echo "Generated source.json:"
+        cat source.json
+
+    - name: Create installation guide
+      run: |
+        cat > installation.md << 'EOF'
+        # Bitcore Wallet Installation Guide
+
+        ## 📱 Method 1: Altstore (Recommended)
+
+        1. **Install Altstore**
+           - Visit [altstore.io](https://altstore.io/) on your iOS device
+           - Follow the installation instructions
+           - Trust the developer profile in Settings
+
+        2. **Add Source**
+           - Open Altstore
+           - Go to "Browse" tab
+           - Tap "+" in top right corner
+           - Enter URL: `https://bitcore-wallet.github.io/BitcoreWallet/source.json`
+           - Tap "Add Source"
+
+        3. **Install App**
+           - Browse to "Bitcore Wallet"
+           - Tap "Get" or "Install"
+           - Wait for installation to complete
+           - Trust developer in Settings if prompted
+
+        4. **Setup Automatic Refresh**
+           - In Altstore, enable "Refresh All Apps"
+           - This automatically refreshes your 7-day certificates
+
+        ## 📱 Method 2: Manual IPA Installation
+
+        1. **Download IPA**
+           - Visit [GitHub Releases](https://github.com/bitcore-wallet/BitcoreWallet/releases)
+           - Download the latest `BitcoreWallet.ipa`
+
+        2. **Install with Altstore**
+           - In Altstore, tap the "+" button
+           - Select the downloaded IPA file
+           - Wait for installation
+
+        3. **Trust Developer**
+           - Go to Settings → General → VPN & Device Management
+           - Find and trust the developer profile
+
+        ## 🔧 Troubleshooting
+
+        **Certificate Expired:**
+        - Open Altstore and let it refresh automatically
+        - Or manually refresh the app in Altstore
+
+        **Installation Failed:**
+        - Ensure you have enough storage space
+        - Check your internet connection
+        - Try restarting your iOS device
+
+        **App Won't Open:**
+        - Trust the developer in Settings
+        - Reinstall the app from Altstore
+
+        ## 🔄 Automatic Updates
+
+        Altstore will automatically:
+- Refresh your 7-day certificates when connected to WiFi
+- Update the app when new versions are released
+- Notify you of available updates
+
+        ## 💡 Tips
+
+        - **Backup Your Keys**: Always backup your recovery phrases!
+        - **WiFi Connection**: Altstore needs WiFi for automatic refresh
+        - **Storage**: Keep at least 1GB free space on your device
+        - **Updates**: Check for app updates weekly
+
+        ## 🆘 Support
+
+        If you encounter issues:
+        - [Report a bug](https://github.com/bitcore-wallet/BitcoreWallet/issues)
+        - [Join discussions](https://github.com/bitcore-wallet/BitcoreWallet/discussions)
+        - Check our [FAQ](https://github.com/bitcore-wallet/BitcoreWallet/wiki/FAQ)
+        EOF
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./
+        publish_branch: gh-pages
+        keep_files: true
+        destination_dir: ./
+        allow_empty_commit: true
+
+    - name: Summary
+      run: |
+        echo "## ✅ Altstore Source Updated!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Source URL:** https://bitcore-wallet.github.io/BitcoreWallet/source.json" >> $GITHUB_STEP_SUMMARY
+        echo "**Installation Guide:** https://bitcore-wallet.github.io/BitcoreWallet/installation.md" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Users can now add this source to Altstore and install Bitcore Wallet!**" >> $GITHUB_STEP_SUMMARY

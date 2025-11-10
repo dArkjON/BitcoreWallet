@@ -1,0 +1,256 @@
+name: Update Documentation
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  update-docs:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Generate README
+      run: |
+        # Create a comprehensive README for the repository
+        cat > README.md << 'EOF'
+        # Bitcore Wallet iOS
+
+        ![Bitcore Wallet](https://img.shields.io/badge/Platform-iOS-blue.svg)
+        ![Version](https://img.shields.io/badge/Version-7.2.1-green.svg)
+        ![License](https://img.shields.io/badge/License-MIT-yellow.svg)
+
+        A powerful Bitcore (BTX) cryptocurrency wallet for iOS, forked from BlueWallet and fully adapted for the Bitcore ecosystem.
+
+        ## ✨ Features
+
+        - 🚀 **Full Bitcore Support** - Native BTX transactions and addresses
+        - 💼 **Multiple Wallet Types** - Legacy, SegWit P2SH, SegWit Bech32, Taproot
+        - 📝 **220-byte OP_RETURN** - Much larger than Bitcoin's 80 bytes
+        - 🔐 **Secure** - Local encryption, Face ID/Touch ID support
+        - 🌐 **Electrum Integration** - Connects to Bitcore Electrum servers
+        - 📱 **iOS Native** - Optimized for iPhone and iPad
+        - 🔄 **Real-time Sync** - Automatic transaction fetching
+
+        ## 📲 Installation (Altstore)
+
+        The easiest way to install Bitcore Wallet is through Altstore:
+
+        1. **Install Altstore** on your iOS device (visit [altstore.io](https://altstore.io/))
+        2. **Add Source**: In Altstore, go to Browse → Add Source and enter:
+           ```
+           https://bitcore-wallet.github.io/BitcoreWallet/source.json
+           ```
+        3. **Install**: Find Bitcore Wallet and tap "Install"
+        4. **Trust**: Go to Settings → General → VPN & Device Management and trust the developer
+
+        ### Alternative: Manual Installation
+
+        Download the latest [IPA file](https://github.com/bitcore-wallet/BitcoreWallet/releases/latest) and install it using Altstore or Sideloadly.
+
+        ## 🔧 Build from Source
+
+        Prerequisites:
+        - macOS with Xcode 14+
+        - Node.js 20+
+        - CocoaPods
+
+        ```bash
+        # Clone repository
+        git clone https://github.com/bitcore-wallet/BitcoreWallet.git
+        cd BitcoreWallet
+
+        # Install dependencies
+        npm install
+        cd ios && pod install && cd ..
+
+        # Build IPA
+        ./scripts/build-altstore.sh
+        ```
+
+        ## 🌐 Bitcore Network
+
+        **Electrum Servers:**
+        - `ele1.bitcore.cc:50002` (SSL)
+        - `ele2.bitcore.cc:50002` (SSL)
+        - `ele3.bitcore.cc:50002` (SSL)
+        - `ele4.bitcore.cc:50002` (SSL)
+
+        **Address Formats:**
+        - **P2PKH**: Starts with `3` (prefix 0x03)
+        - **P2SH**: Starts with prefix 0x7d (125)
+        - **Bech32**: `btx1...` format
+
+        **Network Parameters:**
+        - Bech32 HRP: `btx`
+        - Magic Number: `0x5b1f2b83`
+        - OP_RETURN Max: 220 bytes
+
+        ## 📱 Screenshots
+
+        ![Main Screen](docs/screenshots/main.png)
+        ![Wallet View](docs/screenshots/wallet.png)
+        ![Send Screen](docs/screenshots/send.png)
+
+        ## 🔒 Security
+
+        - **Local Storage** - All private keys stored locally
+        - **Encryption** - Wallet data encrypted with device passcode
+        - **Biometric** - Face ID and Touch ID support
+        - **No Tracking** - No analytics or tracking
+        - **Open Source** - Fully auditable code
+
+        ## 🆚 Differences from BlueWallet
+
+        | Feature | BlueWallet | Bitcore Wallet |
+        |---------|------------|----------------|
+        | Cryptocurrency | Bitcoin (BTC) | Bitcore (BTX) |
+        | Network | Bitcoin Mainnet | Bitcore Mainnet |
+        | Electrum Servers | Bitcoin Electrum | Bitcore Electrum |
+        | Address Format | Bitcoin Addresses | Bitcore Addresses |
+        | OP_RETURN | 80 bytes | 220 bytes |
+        | Bech32 HRP | `bc` | `btx` |
+
+        ## 🤝 Contributing
+
+        Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting pull requests.
+
+        Development setup:
+        ```bash
+        # Fork and clone
+        git clone https://github.com/YOUR_USERNAME/BitcoreWallet.git
+        cd BitcoreWallet
+
+        # Install dependencies
+        npm install
+        cd ios && pod install
+
+        # Run tests
+        npm test
+
+        # Start development server
+        npm start
+        ```
+
+        ## 📋 Features
+
+        ### Wallet Types
+        - ✅ Legacy Wallet (P2PKH)
+        - ✅ SegWit P2SH Wallet
+        - ✅ SegWit Bech32 Wallet
+        - ✅ Taproot Wallet (P2TR)
+
+        ### Advanced Features
+        - ✅ RBF (Replace-by-Fee)
+        - ✅ CPFP (Child-Pays-for-Parent)
+        - ✅ PSBT (Partially Signed Transactions)
+        - ✅ Hardware Wallet Support
+        - ✅ Watch-only Wallets
+        - ✅ Multi-signature Support
+
+        ### Address & Transaction Support
+        - ✅ Address Validation
+        - ✅ QR Code Scanning
+        - ✅ Transaction History
+        - ✅ Fee Estimation
+        - ✅ UTXO Management
+
+        ## 🐛 Bug Reports
+
+        Found a bug? Please [create an issue](https://github.com/bitcore-wallet/BitcoreWallet/issues) with:
+        - Detailed description
+        - Steps to reproduce
+        - Expected vs actual behavior
+        - Device info (iOS version, device model)
+
+        ## 📄 License
+
+        This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+        ## 🙏 Acknowledgments
+
+        - [BlueWallet](https://github.com/BlueWallet/BlueWallet) - Original wallet codebase
+        - [Bitcore](https://bitcore.cc/) - Bitcore cryptocurrency and infrastructure
+        - [electrum-btx](https://github.com/bitcore-btx/electrum-btx) - Bitcore Electrum server
+        - [Altstore](https://altstore.io/) - iOS app distribution platform
+
+        ## 📞 Support
+
+        - **Discussions**: [GitHub Discussions](https://github.com/bitcore-wallet/BitcoreWallet/discussions)
+        **Issues**: [GitHub Issues](https://github.com/bitcore-wallet/BitcoreWallet/issues)
+        - **Community**: Join our Bitcore community channels
+
+        ---
+
+        ⚠️ **Disclaimer**: This is experimental software. Use at your own risk. Always backup your wallet keys.
+
+        EOF
+
+    - name: Create placeholder docs directory
+      run: |
+        mkdir -p docs/screenshots
+
+        # Create placeholder files
+        echo "# Placeholder for app icon" > docs/icon-1024.md
+        echo "# Screenshots will be added here" > docs/screenshots/README.md
+
+        # Create contributing guide
+        cat > CONTRIBUTING.md << 'EOF'
+        # Contributing to Bitcore Wallet
+
+        We welcome contributions! Here's how you can help:
+
+        ## 🐛 Bug Reports
+        - Use the issue template
+        - Provide detailed steps to reproduce
+        - Include device information
+
+        ## 💡 Feature Requests
+        - Open an issue with "enhancement" label
+        - Describe the use case clearly
+        - Consider implementation complexity
+
+        ## 🔧 Code Contributions
+        1. Fork the repository
+        2. Create a feature branch
+        3. Make your changes
+        4. Add tests if applicable
+        5. Submit a pull request
+
+        ## 🧪 Testing
+        ```bash
+        npm test
+        npm run lint
+        ```
+
+        ## 📝 Coding Standards
+        - Follow TypeScript conventions
+        - Use meaningful variable names
+        - Add comments for complex logic
+        EOF
+
+    - name: Commit and push if changed
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add README.md CONTRIBUTING.md docs/ || true
+        git diff --staged --quiet || git commit -m "docs: Update documentation [skip ci]"
+        git push || echo "No changes to commit"
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: ./
+        publish_branch: gh-pages
+        keep_files: true
+        destination_dir: ./
+        allow_empty_commit: true

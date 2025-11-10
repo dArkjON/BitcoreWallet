@@ -7,6 +7,7 @@ import { SegwitBech32Wallet } from './segwit-bech32-wallet';
 import { CreateTransactionResult, CreateTransactionUtxo } from './types.ts';
 import { CoinSelectTarget } from 'coinselect';
 import { hexToUint8Array } from '../../blue_modules/uint8array-extras';
+import { getBitcoreNetwork } from '../../blue_modules/bitcore-network';
 const ECPair = ECPairFactory(ecc);
 
 export class TaprootWallet extends SegwitBech32Wallet {
@@ -27,7 +28,7 @@ export class TaprootWallet extends SegwitBech32Wallet {
   static scriptPubKeyToAddress(scriptPubKey: string): string | false {
     try {
       const publicKey = hexToUint8Array(scriptPubKey);
-      return bitcoin.address.fromOutputScript(publicKey, bitcoin.networks.bitcoin);
+      return bitcoin.address.fromOutputScript(publicKey, getBitcoreNetwork());
     } catch (_) {
       return false;
     }
@@ -95,7 +96,7 @@ export class TaprootWallet extends SegwitBech32Wallet {
     });
     if (!p2tr.output) throw new Error('Could not build p2tr.output');
 
-    const psbt = new bitcoin.Psbt();
+    const psbt = new bitcoin.Psbt({ network: getBitcoreNetwork() });
 
     // Add Taproot inputs
     inputs.forEach((input, idx) => {
@@ -116,10 +117,35 @@ export class TaprootWallet extends SegwitBech32Wallet {
     outputs.forEach(output => {
       // if output has no address - this is change output
       if (!output.address) output.address = changeAddress;
-      psbt.addOutput({
-        address: output.address!,
-        value: BigInt(output.value),
-      });
+
+      if (output.address && output.address.startsWith('OP_RETURN:')) {
+        // Handle OP_RETURN output for Bitcore
+        const data = output.address.replace('OP_RETURN:', '');
+        const dataBuffer = Buffer.from(data, 'utf8');
+
+        // Bitcore supports 220-byte OP_RETURN (vs Bitcoin's 80 bytes)
+        if (dataBuffer.length > 220) {
+          throw new Error(`OP_RETURN data too large: ${dataBuffer.length} bytes (max 220 for Bitcore)`);
+        }
+
+        // Create OP_RETURN script
+        const script = Buffer.concat([
+          Buffer.from([0x6a]), // OP_RETURN
+          Buffer.from([dataBuffer.length]),
+          dataBuffer
+        ]);
+
+        psbt.addOutput({
+          script: script,
+          value: BigInt(output.value),
+        });
+      } else {
+        // Regular address output
+        psbt.addOutput({
+          address: output.address!,
+          value: BigInt(output.value),
+        });
+      }
     });
 
     let tx;

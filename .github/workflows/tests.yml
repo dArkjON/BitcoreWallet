@@ -1,0 +1,235 @@
+name: Tests and Quality Checks
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        node-version: [18, 20]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        npm ci
+
+    - name: Run linting
+      run: |
+        npm run lint
+
+    - name: Run TypeScript checks
+      run: |
+        npm run tslint
+
+    - name: Run unit tests
+      run: |
+        npm run unit
+
+    - name: Run integration tests
+      run: |
+        npm run jest
+
+    - name: Check address validation tests
+      run: |
+        echo "Running Bitcore address validation tests..."
+        npm test -- tests/unit/isValidBech32Address.test.ts
+
+    - name: Generate coverage report
+      run: |
+        npm test -- --coverage
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage/lcov.info
+        flags: unittests
+        name: codecov-umbrella
+
+  android-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Setup Java
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+
+    - name: Install dependencies
+      run: |
+        npm ci
+
+    - name: Run Android tests
+      run: |
+        cd android
+        ./gradlew test
+
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      run: |
+        npm ci
+
+    - name: Run npm audit
+      run: |
+        npm audit --audit-level moderate
+
+    - name: Scan for secrets
+      uses: trufflesecurity/trufflehog@main
+      with:
+        path: ./
+        base: main
+        head: HEAD
+
+  build-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        npm ci
+
+    - name: Check build compatibility
+      run: |
+        # Check if all required files are present
+        ls -la scripts/build-altstore.sh
+        ls -la scripts/ExportOptions.plist
+        ls -la .github/workflows/build-ios.yml
+
+    - name: Validate package.json
+      run: |
+        # Check if package.json has correct name and other fields
+        node -e "
+        const pkg = require('./package.json');
+        console.log('Package name:', pkg.name);
+        console.log('Version:', pkg.version);
+        console.log('Repository:', pkg.repository.url);
+
+        if (pkg.name !== 'bitcore-wallet') {
+          throw new Error('Package name should be bitcore-wallet');
+        }
+        "
+
+    - name: Validate iOS configuration
+      run: |
+        # Check iOS bundle identifiers
+        if grep -q "io.bitcore.bitcorewallet" ios/BlueWallet.xcodeproj/project.pbxproj; then
+          echo "✅ iOS bundle identifier configured correctly"
+        else
+          echo "❌ iOS bundle identifier not found"
+          exit 1
+        fi
+
+        # Check Android configuration
+        if grep -q "Bitcore Wallet" android/app/src/main/res/values/strings.xml; then
+          echo "✅ Android app name configured correctly"
+        else
+          echo "❌ Android app name not found"
+          exit 1
+        fi
+
+  documentation-check:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Check required files
+      run: |
+        echo "Checking required files..."
+
+        # Required files
+        required_files=(
+          "README.md"
+          "ALTSTORE_BUILD.md"
+          "scripts/build-altstore.sh"
+          "blue_modules/bitcore-network.ts"
+          ".github/workflows/build-ios.yml"
+        )
+
+        for file in "${required_files[@]}"; do
+          if [ -f "$file" ]; then
+            echo "✅ $file exists"
+          else
+            echo "❌ $file missing"
+            exit 1
+          fi
+        done
+
+    - name: Validate documentation
+      run: |
+        # Check if build guide is comprehensive
+        echo "Validating build guide..."
+
+        if grep -q "iOS Build" ALTSTORE_BUILD.md; then
+          echo "✅ Build guide contains iOS instructions"
+        fi
+
+        if grep -q "GitHub" ALTSTORE_BUILD.md; then
+          echo "✅ Build guide contains GitHub instructions"
+        fi
+
+    - name: Check workflows syntax
+      run: |
+        echo "Validating workflow files..."
+
+        for workflow in .github/workflows/*.yml; do
+          if command -v yamllint >/dev/null 2>&1; then
+            yamllint "$workflow" || echo "⚠️ YAML linting failed for $workflow"
+          fi
+
+          # Basic YAML syntax check
+          python3 -c "import yaml; yaml.safe_load(open('$workflow'))" || {
+            echo "❌ Invalid YAML in $workflow"
+            exit 1
+          }
+        done
+
+        echo "✅ All workflow files have valid syntax"
