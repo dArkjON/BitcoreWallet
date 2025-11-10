@@ -200,23 +200,37 @@ jobs:
         # Clean any existing archive
         rm -rf $RUNNER_TEMP/BitcoreWallet.xcarchive
 
+        # Function to detect available schemes
+        detect_schemes() {
+          local project_type=$1
+          local project_path=$2
+
+          echo "🔍 Detecting schemes for $project_type..."
+          xcodebuild -list $project_path 2>/dev/null | grep -A 10 "Schemes:" | grep -v "Schemes:" | grep -v "^$" | sed 's/^[[:space:]]*//' || echo "No schemes found"
+        }
+
         # Function to try build with different configurations
         try_build() {
           local method=$1
           local xcode_args="$2"
+          local scheme="$3"
 
-          echo "🔄 Attempting build with $method..."
+          echo "🔄 Attempting build with $method using scheme: $scheme"
 
           set +e
           xcodebuild archive $xcode_args \
-            -scheme BlueWallet \
+            -scheme "$scheme" \
             -configuration Release \
             -archivePath $RUNNER_TEMP/BitcoreWallet.xcarchive \
             -destination generic/platform=iOS \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
             ENABLE_BITCODE=NO \
             ONLY_ACTIVE_ARCH=NO \
-            -quiet 2>&1 | tee $RUNNER_TEMP/build_${method}.log
+            -allowProvisioningUpdates \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            2>&1 | tee $RUNNER_TEMP/build_${method}.log
 
           local exit_code=$?
           set -e
@@ -228,8 +242,11 @@ jobs:
             return 0
           else
             echo "❌ $method build failed (exit code $exit_code)"
-            echo "📋 Last 20 lines of log:"
-            tail -20 $RUNNER_TEMP/build_${method}.log
+            echo "📋 Last 50 lines of log:"
+            tail -50 $RUNNER_TEMP/build_${method}.log
+            echo ""
+            echo "🔍 Searching for common error patterns:"
+            grep -i -E "(error|failed|unable|cannot)" $RUNNER_TEMP/build_${method}.log | tail -10 || echo "No error patterns found"
             return 1
           fi
         }
@@ -237,19 +254,63 @@ jobs:
         # Try different approaches
         BUILD_SUCCESS=0
 
-        # Attempt 1: Workspace build
+        # Detect available schemes first
         if [ -d "BlueWallet.xcworkspace" ]; then
-          echo "📱 Trying workspace build..."
-          if try_build "workspace" "-workspace BlueWallet.xcworkspace"; then
-            BUILD_SUCCESS=1
+          echo "📱 Workspace found, detecting schemes..."
+          WORKSPACE_SCHEMES=$(detect_schemes "workspace" "-workspace BlueWallet.xcworkspace")
+          echo "Available workspace schemes: $WORKSPACE_SCHEMES"
+        fi
+
+        if [ -d "BlueWallet.xcodeproj" ]; then
+          echo "📱 Project found, detecting schemes..."
+          PROJECT_SCHEMES=$(detect_schemes "project" "-project BlueWallet.xcodeproj")
+          echo "Available project schemes: $PROJECT_SCHEMES"
+        fi
+
+        # Common scheme names to try
+        SCHEMES_TO_TRY=("BlueWallet" "BlueWallet" "bitcore-wallet" "BitcoreWallet" "ios" "app")
+
+        # Attempt 1: Workspace build with different schemes
+        if [ -d "BlueWallet.xcworkspace" ]; then
+          echo "📱 Trying workspace builds..."
+          for scheme in "${SCHEMES_TO_TRY[@]}"; do
+            if echo "$WORKSPACE_SCHEMES" | grep -q "$scheme"; then
+              echo "✅ Found scheme '$scheme' in workspace"
+              if try_build "workspace_$scheme" "-workspace BlueWallet.xcworkspace" "$scheme"; then
+                BUILD_SUCCESS=1
+                break
+              fi
+            fi
+          done
+
+          # If no scheme found, try with BlueWallet anyway
+          if [ $BUILD_SUCCESS -eq 0 ]; then
+            echo "⚠️ Trying workspace build with default scheme name..."
+            if try_build "workspace_default" "-workspace BlueWallet.xcworkspace" "BlueWallet"; then
+              BUILD_SUCCESS=1
+            fi
           fi
         fi
 
-        # Attempt 2: Project build
+        # Attempt 2: Project build with different schemes
         if [ $BUILD_SUCCESS -eq 0 ] && [ -d "BlueWallet.xcodeproj" ]; then
-          echo "📱 Trying project build..."
-          if try_build "project" "-project BlueWallet.xcodeproj"; then
-            BUILD_SUCCESS=1
+          echo "📱 Trying project builds..."
+          for scheme in "${SCHEMES_TO_TRY[@]}"; do
+            if echo "$PROJECT_SCHEMES" | grep -q "$scheme"; then
+              echo "✅ Found scheme '$scheme' in project"
+              if try_build "project_$scheme" "-project BlueWallet.xcodeproj" "$scheme"; then
+                BUILD_SUCCESS=1
+                break
+              fi
+            fi
+          done
+
+          # If no scheme found, try with BlueWallet anyway
+          if [ $BUILD_SUCCESS -eq 0 ]; then
+            echo "⚠️ Trying project build with default scheme name..."
+            if try_build "project_default" "-project BlueWallet.xcodeproj" "BlueWallet"; then
+              BUILD_SUCCESS=1
+            fi
           fi
         fi
 
@@ -262,6 +323,9 @@ jobs:
             echo ""
             echo "📋 Archive structure:"
             find $RUNNER_TEMP/BitcoreWallet.xcarchive -name "*.app" | head -5
+            echo ""
+            echo "📱 App bundle contents:"
+            find $RUNNER_TEMP/BitcoreWallet.xcarchive -name "*.app" -exec ls -la {} \;
           else
             echo "❌ Archive directory not found despite success code"
             exit 1
@@ -270,6 +334,19 @@ jobs:
           echo "❌ All build attempts failed"
           echo "📋 Available logs:"
           ls -la $RUNNER_TEMP/build_*.log 2>/dev/null || echo "No build logs found"
+
+          # Show summary of all errors
+          echo ""
+          echo "🚨 ERROR SUMMARY:"
+          echo "=================="
+          for log in $RUNNER_TEMP/build_*.log; do
+            if [ -f "$log" ]; then
+              echo "📄 $(basename $log):"
+              grep -i -E "(error:|failed|unable|cannot)" "$log" | head -5 || echo "  No clear errors found"
+              echo ""
+            fi
+          done
+
           exit 1
         fi
 
