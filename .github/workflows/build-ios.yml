@@ -236,4 +236,4 @@ jobs:
         # Create a simple badge
         echo "📱 Latest Version: ${{ steps.build_info.outputs.VERSION }}" >> $GITHUB_STEP_SUMMARY
         echo "⬇️ Download: https://github.com/${{ github.repository }}/releases" >> $GITHUB_STEP_SUMMARY
-        echo "📲 Altstore: https://bitcore-wallet.github.io/BitcoreWallet/source.json" >> $GITHUB_STEP_SUMMARY
+        echo "📲 Altstore: https://bitcore-wallet.github.io/BitcoreWallet/source.json" >> $GITHUB_STEP_SUMMARY# Build trigger enabled
